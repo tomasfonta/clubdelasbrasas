@@ -15,13 +15,14 @@ export async function getMetrics(days, promoId = null) {
   const vWhere = `ts >= ${since}${promoFilter}`;
   const all = (sql) => db.all(sql);
   const one = async (sql) => (await db.get(sql)).n;
-  const group = (col, limit = 10) =>
+  // known=true descarta las visitas sin valor (p. ej. sin ciudad) en vez de agruparlas como 'Desconocido'.
+  const group = (col, limit = 10, known = false) =>
     all(`SELECT COALESCE(${col}, 'Desconocido') AS label, COUNT(*) AS n, COUNT(DISTINCT visitor_id) AS u
-         FROM visits WHERE ${vWhere} GROUP BY label ORDER BY n DESC LIMIT ${limit}`);
+         FROM visits WHERE ${vWhere}${known ? ` AND (${col}) IS NOT NULL` : ''} GROUP BY label ORDER BY n DESC LIMIT ${limit}`);
 
   // Todas las consultas en paralelo: con Turso cada una es un viaje de red.
   const [visits, uniques, promoVisits, coupons, redeemed, whatsapp, daily, redeemedRows, byPromo, byHour, recentCoupons,
-    bySource, byCountry, byCity, byDevice, byOs, byInApp, byReferrer, byLang, byCampaign] = await Promise.all([
+    bySource, byCountry, byCity, byDevice, byOs, byInApp, byReferrer, byLang, byCampaign, noCity, noCountry] = await Promise.all([
     one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere}`),
     one(`SELECT COUNT(DISTINCT visitor_id) AS n FROM visits WHERE ${vWhere}`),
     one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere} AND promo_id IS NOT NULL`),
@@ -48,14 +49,16 @@ export async function getMetrics(days, promoId = null) {
     WHERE 1=1${promoFilter.replace('promo_id', 'c.promo_id')}
     ORDER BY COALESCE(c.redeemed_at, c.created_at) DESC LIMIT 25`),
     group('source'),
-    group('country'),
-    group(`city || CASE WHEN country IS NOT NULL THEN ' (' || country || ')' ELSE '' END`),
+    group('country', 10, true),
+    group(`city || CASE WHEN country IS NOT NULL THEN ' (' || country || ')' ELSE '' END`, 10, true),
     group('device'),
     group('os'),
     group(`COALESCE(in_app, browser)`),
     group('referrer', 8),
     group('lang', 8),
     group('utm_campaign', 8),
+    one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere} AND city IS NULL`),
+    one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere} AND country IS NULL`),
   ]);
 
   const redeemedDaily = Object.fromEntries(redeemedRows.map((r) => [r.day, r.n]));
@@ -77,5 +80,7 @@ export async function getMetrics(days, promoId = null) {
     byReferrer,
     byLang,
     byCampaign,
+    noCity,
+    noCountry,
   };
 }

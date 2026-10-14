@@ -115,7 +115,7 @@ function roundedTop(x, y, w, h) {
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
 }
 
-function breakdown(title, rows, labels = {}) {
+function breakdown(title, rows, labels = {}, note = '') {
   const max = Math.max(...rows.map((r) => r.n), 1);
   return html`<section class="card">
     <h3>${title}</h3>
@@ -128,6 +128,7 @@ function breakdown(title, rows, labels = {}) {
           )
           .join('')}</tbody></table>`
       : '<p class="empty">Sin datos.</p>'}
+    ${note ? `<p class="note">${note}</p>` : ''}
   </section>`;
 }
 
@@ -191,8 +192,8 @@ export function dashboardPage({ m, days, promos, promoId }) {
 <div class="grid2">
   ${breakdown('Origen', m.bySource, SOURCE_LABELS)}
   ${breakdown('App / navegador', m.byInApp)}
-  ${breakdown('Ciudad', m.byCity)}
-  ${breakdown('País', m.byCountry)}
+  ${breakdown('Ciudad', m.byCity, {}, m.noCity ? `${nf.format(m.noCity)} visitas sin ciudad conocida no se muestran.` : '')}
+  ${breakdown('País', m.byCountry, {}, m.noCountry ? `${nf.format(m.noCountry)} visitas sin país conocido no se muestran.` : '')}
   ${breakdown('Dispositivo', m.byDevice, DEVICE_LABELS)}
   ${breakdown('Sistema', m.byOs)}
   ${breakdown('Idioma del móvil', m.byLang)}
