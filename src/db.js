@@ -1,15 +1,29 @@
-import { DatabaseSync } from 'node:sqlite';
+import { createClient } from '@libsql/client';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-const DB_PATH = process.env.DATABASE_PATH || './data/brasas.db';
-mkdirSync(dirname(DB_PATH), { recursive: true });
+// Producción: Turso (TURSO_DATABASE_URL + TURSO_AUTH_TOKEN). Local: fichero SQLite en ./data.
+const remote = !!process.env.TURSO_DATABASE_URL;
+if (!remote) mkdirSync('./data', { recursive: true });
 
-export const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+const client = createClient(
+  remote
+    ? { url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN }
+    : { url: `file:${process.env.DATABASE_PATH || './data/brasas.db'}` },
+);
 
-db.exec(`
+const toObjects = (rs) => rs.rows.map((r) => Object.fromEntries(rs.columns.map((c, i) => [c, r[i]])));
+
+export const db = {
+  all: async (sql, args = []) => toObjects(await client.execute({ sql, args })),
+  get: async (sql, args = []) => toObjects(await client.execute({ sql, args }))[0],
+  run: async (sql, args = []) => {
+    const r = await client.execute({ sql, args });
+    return { changes: r.rowsAffected };
+  },
+};
+
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS promos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   slug TEXT NOT NULL UNIQUE,
@@ -64,22 +78,17 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-`);
+`;
 
 const shortId = () => randomBytes(3).toString('hex');
 
-// Seed: 5 promos con slug no adivinable. El slug no se edita nunca: es lo que va impreso en el QR.
-if (db.prepare('SELECT COUNT(*) AS n FROM promos').get().n === 0) {
-  const seed = [
-    ['pinta', 'Pinta gratis', '1 PINTA GRATIS', 'Te invitamos a una pinta de cerveza bien fría.', 'Con la compra de cualquier consumición. Un cupón por persona.'],
-    ['tapa', 'Tapa gratis', '1 TAPA GRATIS', 'Una tapa de la casa para acompañar tu bebida.', 'Con la compra de una bebida. Un cupón por persona.'],
-    ['empanada', 'Empanada de regalo', 'EMPANADA GRATIS', 'Prueba nuestras empanadas argentinas recién horneadas.', 'Con cualquier plato de la parrilla. Un cupón por persona.'],
-    ['postre', 'Postre de la casa', 'POSTRE GRATIS', 'Cierra la comida con algo dulce, invita la casa.', 'Mesas de 2 o más personas que pidan parrilla. Un cupón por mesa.'],
-    ['descuento', '10% de descuento', '-10%', 'Un 10% de descuento en el total de tu cuenta.', 'No acumulable con otras promociones. Un cupón por mesa.'],
-  ];
-  const insert = db.prepare('INSERT INTO promos (slug, title, badge, description, conditions, sort) VALUES (?, ?, ?, ?, ?, ?)');
-  seed.forEach(([key, ...rest], i) => insert.run(`${key}-${shortId()}`, ...rest, i));
-}
+const SEED_PROMOS = [
+  ['pinta', 'Pinta gratis', '1 PINTA GRATIS', 'Te invitamos a una pinta de cerveza bien fría.', 'Con la compra de cualquier consumición. Un cupón por persona.'],
+  ['tapa', 'Tapa gratis', '1 TAPA GRATIS', 'Una tapa de la casa para acompañar tu bebida.', 'Con la compra de una bebida. Un cupón por persona.'],
+  ['empanada', 'Empanada de regalo', 'EMPANADA GRATIS', 'Prueba nuestras empanadas argentinas recién horneadas.', 'Con cualquier plato de la parrilla. Un cupón por persona.'],
+  ['postre', 'Postre de la casa', 'POSTRE GRATIS', 'Cierra la comida con algo dulce, invita la casa.', 'Mesas de 2 o más personas que pidan parrilla. Un cupón por mesa.'],
+  ['descuento', '10% de descuento', '-10%', 'Un 10% de descuento en el total de tu cuenta.', 'No acumulable con otras promociones. Un cupón por mesa.'],
+];
 
 const DEFAULT_SETTINGS = {
   whatsapp_number: process.env.WHATSAPP_NUMBER || '34600000000',
@@ -89,22 +98,42 @@ const DEFAULT_SETTINGS = {
   instagram: 'https://www.instagram.com/elclubdelasbrasas/',
   menu_url: 'https://elclubdelasbrasas.tucartadigital.com/',
 };
-const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
-for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
 
-export function getSettings() {
-  return Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map((r) => [r.key, r.value]));
+// Crea tablas y datos iniciales. Idempotente: se ejecuta en cada arranque.
+export async function initDb() {
+  if (!remote) await client.execute('PRAGMA journal_mode = WAL');
+  await client.executeMultiple(SCHEMA);
+
+  // Seed: 5 promos con slug no adivinable. El slug no se edita nunca: es lo que va impreso en el QR.
+  if ((await db.get('SELECT COUNT(*) AS n FROM promos')).n === 0) {
+    await client.batch(
+      SEED_PROMOS.map(([key, ...rest], i) => ({
+        sql: 'INSERT INTO promos (slug, title, badge, description, conditions, sort) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [`${key}-${shortId()}`, ...rest, i],
+      })),
+      'write',
+    );
+  }
+  await client.batch(
+    Object.entries(DEFAULT_SETTINGS).map(([k, v]) => ({ sql: 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', args: [k, v] })),
+    'write',
+  );
+  console.log(`🗄️  Base de datos: ${remote ? `Turso (${new URL(process.env.TURSO_DATABASE_URL).host})` : 'fichero local'}`);
 }
 
-export function saveSettings(values) {
-  const upsert = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
-  for (const k of Object.keys(DEFAULT_SETTINGS)) {
-    if (typeof values[k] === 'string') upsert.run(k, values[k].trim());
-  }
+export async function getSettings() {
+  return Object.fromEntries((await db.all('SELECT key, value FROM settings')).map((r) => [r.key, r.value]));
+}
+
+export async function saveSettings(values) {
+  const stmts = Object.keys(DEFAULT_SETTINGS)
+    .filter((k) => typeof values[k] === 'string')
+    .map((k) => ({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', args: [k, values[k].trim()] }));
+  if (stmts.length) await client.batch(stmts, 'write');
 }
 
 export const isPromoLive = (p) =>
-  !!p && p.active === 1 && (!p.valid_until || p.valid_until >= new Date().toISOString().slice(0, 10));
+  !!p && Number(p.active) === 1 && (!p.valid_until || p.valid_until >= new Date().toISOString().slice(0, 10));
 
 const COUPON_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export function newCouponCode() {

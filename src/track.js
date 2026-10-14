@@ -38,7 +38,7 @@ function resolveSource(req, inApp) {
   return 'directo';
 }
 
-export function recordVisit(req, res, promoId = null) {
+export async function recordVisit(req, res, promoId = null) {
   const vid = visitorId(req, res);
   if (isBot(req)) return vid;
   const ua = req.get('user-agent') || '';
@@ -46,9 +46,9 @@ export function recordVisit(req, res, promoId = null) {
   const inApp = inAppBrowser(ua);
   const geo = geoip.lookup(req.ip) || {};
   const ref = req.get('referer') || null;
-  db.prepare(`INSERT INTO visits
+  await db.run(`INSERT INTO visits
     (path, promo_id, visitor_id, source, utm_source, utm_medium, utm_campaign, referrer, country, region, city, device, os, browser, in_app, lang)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
     req.path,
     promoId,
     vid,
@@ -65,12 +65,12 @@ export function recordVisit(req, res, promoId = null) {
     parsed.browser.name || null,
     inApp,
     (req.get('accept-language') || '').split(',')[0].slice(0, 12) || null,
-  );
+  ]);
   return vid;
 }
 
-export function recordEvent(req, res, type, promoId = null) {
+export async function recordEvent(req, res, type, promoId = null) {
   const vid = visitorId(req, res);
   if (isBot(req)) return;
-  db.prepare('INSERT INTO events (type, visitor_id, promo_id) VALUES (?, ?, ?)').run(type, vid, promoId);
+  await db.run('INSERT INTO events (type, visitor_id, promo_id) VALUES (?, ?, ?)', [type, vid, promoId]);
 }

@@ -2,7 +2,7 @@
 
 Landing de la parrilla (El Palo, Málaga) + promos con QR para Instagram + panel admin con métricas.
 
-Node 22.13+ · Express · SQLite nativo (`node:sqlite`) · sin build.
+Node 20+ · Express · SQLite en [Turso](https://turso.tech) (libSQL) · sin build.
 
 ```bash
 cp .env.example .env
@@ -35,73 +35,94 @@ Para distinguir publicaciones, añade `&utm_campaign=post-pinta-octubre` al link
 
 ## Base de datos
 
-Sí tiene base de datos, pero **no hace falta crear ninguna aparte**: es un fichero **SQLite** que la app crea sola al arrancar (`node:sqlite`, incluido en Node, sin dependencias nativas).
+**SQLite alojado en [Turso](https://turso.tech)**, plan gratuito. La app se conecta con `@libsql/client`.
 
-- Ruta del fichero: variable `DATABASE_PATH` (por defecto `./data/brasas.db`).
-- En el primer arranque crea las tablas y carga las 5 promos y los ajustes por defecto.
+- **Producción:** si existen `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`, usa Turso.
+- **Local:** si no existen, usa el fichero `./data/brasas.db`. No hace falta cuenta para desarrollar.
+- Al arrancar crea las tablas si no existen y, la primera vez, las 5 promos y los ajustes por defecto ([src/db.js](src/db.js)).
 - Tablas: `promos`, `visits` (cada visita con origen, ciudad, dispositivo…), `coupons` (códigos y canjes), `events` (clics en WhatsApp / carta) y `settings` (WhatsApp, dirección, horario…).
 
-⚠️ En Render el disco del servidor se borra en cada deploy. Por eso el fichero tiene que vivir en un **disco persistente** (ver abajo). Sin disco, cada deploy borraría métricas, cupones y cambios en las promos, y **los enlaces de las promos cambiarían** (el slug se genera al crear la base), invalidando los QR impresos.
+```
+Cliente ──HTTPS──▶ Render (Web Service, Node/Express) ──HTTPS──▶ Turso (SQLite gestionado)
+```
+
+El Web Service no guarda nada en disco: se puede redeployar sin perder datos y no necesita disco persistente.
+
+### Crear la base en Turso
+
+```bash
+brew install tursodatabase/tap/turso
+turso auth signup                      # o: turso auth login
+turso db locations                     # elige la región más cercana a Frankfurt
+turso db create clubdelasbrasas --location <región>
+turso db show clubdelasbrasas --url    # → TURSO_DATABASE_URL (libsql://...)
+turso db tokens create clubdelasbrasas # → TURSO_AUTH_TOKEN
+```
+
+Tras el primer deploy la app crea las tablas sola. Para consultar los datos a mano: `turso db shell clubdelasbrasas`.
+
+### Pasar datos de una base existente
+
+Si ya había datos en un fichero SQLite (local o en un disco de Render), cópialos a Turso conservando los slugs de las promos, para que los QR ya impresos sigan funcionando:
+
+```bash
+TURSO_DATABASE_URL=libsql://... TURSO_AUTH_TOKEN=... node scripts/migrate-to-turso.js ./data/brasas.db
+```
+
+⚠️ Reemplaza el contenido de las tablas en Turso.
 
 ## Variables de entorno
 
 | Variable | Obligatoria | Ejemplo | Para qué |
 |---|---|---|---|
-| `ADMIN_PASSWORD` | Sí | `una-clave-larga` | Clave del panel admin. Por defecto `123456`: cámbiala en producción |
+| `TURSO_DATABASE_URL` | Sí en producción | `libsql://clubdelasbrasas-xxx.turso.io` | Base de datos |
+| `TURSO_AUTH_TOKEN` | Sí en producción | `eyJhbGci...` | Token de acceso a Turso |
+| `ADMIN_PASSWORD` | Sí | `una-clave-larga` | Clave del panel admin. Por defecto `123456` |
 | `BASE_URL` | Sí | `https://elclubdelasbrasas.es` | URL pública. Va dentro de los QR. Sin barra final |
-| `DATABASE_PATH` | Sí en Render | `/var/data/brasas.db` | Ruta del fichero SQLite, dentro del disco persistente |
 | `ADMIN_PATH` | No | `admin` | Ruta del panel → `https://.../admin` |
 | `SESSION_SECRET` | Recomendada | (aleatoria) | Firma la cookie de sesión del admin. `render.yaml` la genera sola |
-| `WHATSAPP_NUMBER` | No | `34612345678` | Número inicial de reservas (prefijo país, sin `+` ni espacios). Después se edita en *Ajustes* |
-| `NODE_VERSION` | Sí en Render | `24` | Node ≥ 22.13 (por `node:sqlite`) |
+| `WHATSAPP_NUMBER` | No | `34612345678` | Número inicial de reservas (prefijo país, sin `+`). Después se edita en *Ajustes* |
+| `NODE_VERSION` | Sí en Render | `24` | Versión de Node |
 | `PORT` | No | — | Render la pone sola |
 
 > `WHATSAPP_NUMBER` sólo se usa la primera vez que se crea la base. Luego manda lo que pongas en *Admin → Ajustes*.
 
 ## Subirlo a Render
 
-Necesita el plan **Starter (~7 $/mes)** o superior: el plan gratis no admite discos persistentes.
+### Opción A — Blueprint
 
-### Opción A — Blueprint (recomendada)
+El repo trae `render.yaml` (servicio web en Frankfurt, health check en `/health`, `NODE_VERSION` y `SESSION_SECRET`).
 
-El repo ya trae `render.yaml` con todo configurado (servicio web, disco de 1 GB en `/var/data`, `DATABASE_PATH`, `NODE_VERSION` y `SESSION_SECRET`).
+1. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint** → repo `tomasfonta/clubdelasbrasas`, rama `main`.
+2. Rellena `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ADMIN_PASSWORD`, `BASE_URL` y `WHATSAPP_NUMBER`.
+   Si aún no tienes dominio, pon la URL que da Render (`https://<servicio>.onrender.com`) y cámbiala luego.
+3. **Apply** y espera al deploy. En los logs debe aparecer `🗄️  Base de datos: Turso (...)`.
 
-1. En [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**.
-2. Conecta el repo `tomasfonta/clubdelasbrasas` y rama `main`.
-3. Render te pedirá los valores que faltan: `ADMIN_PASSWORD`, `ADMIN_PATH` (`admin`), `BASE_URL` y `WHATSAPP_NUMBER`.
-   Si aún no tienes dominio, pon de momento la URL que te da Render (`https://elclubdelasbrasas.onrender.com`) y cámbiala luego.
-4. **Apply**. El primer deploy tarda unos minutos (`npm ci` + arranque).
-5. Comprueba que abre la web y entra al panel en `https://<tu-url>/admin`.
+### Opción B — Web Service ya creado
 
-### Opción B — A mano
+1. En el servicio → **Environment**: añade `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` (y el resto de la tabla).
+2. **Settings → Health Check Path**: `/health`.
+3. Si tenía un disco persistente con datos, migra antes (ver *Pasar datos de una base existente*, desde la pestaña **Shell** del servicio con `/var/data/brasas.db`) y después borra el disco en **Disks**.
+4. Guarda: Render redeploya solo. Comprueba en los logs `🗄️  Base de datos: Turso (...)`.
 
-1. **New → Web Service** → conecta el repo, rama `main`.
-2. Configuración:
-   - Runtime: **Node** · Región: **Frankfurt** (la más cercana a España)
-   - Build command: `npm ci`
-   - Start command: `npm start`
-   - Plan: **Starter**
-3. **Advanced → Add Disk**: nombre `data`, mount path `/var/data`, 1 GB.
-4. **Environment**: añade las variables de la tabla de arriba, con `DATABASE_PATH=/var/data/brasas.db` y `NODE_VERSION=24`.
-5. **Create Web Service**.
+> Ojo: si el servicio arranca **sin** las variables de Turso, usa un fichero local que se borra en cada deploy.
 
 ### Dominio propio
 
-1. En el servicio → **Settings → Custom Domains → Add** (ej. `elclubdelasbrasas.es` y `www.elclubdelasbrasas.es`).
-2. Crea en tu proveedor de dominio los registros DNS que indica Render. El HTTPS se activa solo.
-3. Cambia `BASE_URL` al dominio final (Render redeploya solo).
+1. **Settings → Custom Domains → Add** (ej. `elclubdelasbrasas.es` y `www.`).
+2. Crea los registros DNS que indica Render. El HTTPS se activa solo.
+3. Cambia `BASE_URL` al dominio final.
 
-⚠️ **Pon el dominio definitivo en `BASE_URL` antes de descargar e imprimir los QR**: el QR lleva esa URL dentro. Si cambias de dominio después, los QR impresos seguirán apuntando al anterior.
+⚠️ **Pon el dominio definitivo en `BASE_URL` antes de descargar e imprimir los QR**: el QR lleva esa URL dentro.
 
 ### Actualizar
 
-Cada `git push` a `main` redeploya solo. La base de datos se conserva porque está en el disco.
+Cada `git push` a `main` redeploya solo. Los datos viven en Turso y no se tocan.
 
 ### Copias de seguridad
 
-Render hace snapshots diarios del disco (se restauran desde **Disks** en el servicio). Para bajarte una copia manual:
+Turso guarda el historial y permite restaurar a un momento anterior (`turso db create <nueva> --from-db clubdelasbrasas --timestamp ...`). Copia manual:
 
 ```bash
-render ssh <servicio>    # o la pestaña "Shell" del dashboard
-sqlite3 /var/data/brasas.db ".backup /var/data/backup.db"
+turso db shell clubdelasbrasas .dump > backup.sql
 ```
