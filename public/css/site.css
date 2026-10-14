@@ -1,0 +1,133 @@
+:root {
+  --coal: #0d0b0a;
+  --coal-2: #171311;
+  --coal-3: #221b18;
+  --cream: #f3ebe0;
+  --cream-dim: #c9bfb2;
+  --ember: #e8964a;
+  --ember-deep: #c8642b;
+  --wine: #7a1f2b;
+  --teal: #2f9e8f;
+  --wa: #25d366;
+  --radius: 14px;
+  --hand: 'Caveat Brush', cursive;
+  --display: 'Oswald', system-ui, sans-serif;
+  --body: 'Work Sans', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--coal); color: var(--cream); font: 400 17px/1.6 var(--body); }
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: .02em; line-height: 1.15; margin: 0 0 .5em; }
+h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); text-transform: uppercase; }
+h3 { font-size: 1.1rem; text-transform: uppercase; color: var(--ember); letter-spacing: .08em; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.logo { color: var(--cream); display: block; }
+.ico { width: 1.25em; height: 1.25em; flex: none; }
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .55em;
+  padding: .9em 1.4em; border-radius: 999px; border: 2px solid transparent;
+  font: 600 1rem/1 var(--body); text-decoration: none; cursor: pointer;
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn:focus-visible { outline: 3px solid var(--ember); outline-offset: 3px; }
+.btn-wa { background: var(--wa); color: #06210f; }
+.btn-wa:hover { background: #3be27a; }
+.btn-ghost { border-color: var(--cream-dim); color: var(--cream); background: transparent; }
+.btn-ghost:hover { border-color: var(--cream); background: rgba(243, 235, 224, .06); }
+.btn-ember { background: var(--ember); color: var(--coal); }
+.btn-ember:hover { background: #f2a660; }
+.btn-lg { padding: 1.05em 1.8em; font-size: 1.08rem; }
+.btn-block { display: flex; width: 100%; }
+.link-arrow { color: var(--ember); font-weight: 600; text-decoration: none; }
+.link-arrow:hover { text-decoration: underline; }
+
+/* Hero */
+.hero {
+  position: relative; overflow: hidden; min-height: 92svh;
+  display: grid; place-items: center; text-align: center; padding: 64px 16px 88px;
+  background:
+    radial-gradient(120% 70% at 50% 115%, rgba(232, 150, 74, .38), rgba(200, 100, 43, .12) 45%, transparent 70%),
+    var(--coal);
+}
+.hero-inner { position: relative; z-index: 1; max-width: 640px; }
+.hero-logo { width: min(440px, 82vw); aspect-ratio: 1650 / 1400; margin: 0 auto 8px; }
+.hero-kicker { font: 400 clamp(1.5rem, 4.5vw, 2rem)/1.1 var(--hand); color: var(--ember); margin: 0 0 12px; }
+.hero-lead { font-size: 1.12rem; color: var(--cream-dim); margin: 0 auto 28px; max-width: 30ch; }
+.cta-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.embers { position: absolute; inset: auto 0 0 0; height: 45%; pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 12% 80%, #ffb36b, transparent), radial-gradient(2px 2px at 28% 60%, #ff9a4a, transparent),
+    radial-gradient(1.5px 1.5px at 44% 90%, #ffc58a, transparent), radial-gradient(2px 2px at 63% 70%, #ff9a4a, transparent),
+    radial-gradient(1.5px 1.5px at 77% 85%, #ffb36b, transparent), radial-gradient(2px 2px at 90% 65%, #ffc58a, transparent);
+  animation: rise 7s linear infinite; opacity: .8; }
+@keyframes rise { from { transform: translateY(30%); opacity: 0; } 20% { opacity: .9; } to { transform: translateY(-70%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .embers { animation: none; } html { scroll-behavior: auto; } }
+
+/* Historia */
+.story { max-width: 1100px; margin: 0 auto; padding: 72px 16px; display: grid; gap: 40px; align-items: center; }
+@media (min-width: 860px) { .story { grid-template-columns: 1fr 1fr; gap: 64px; padding: 110px 24px; } }
+.story-art { margin: 0; background: #000; border-radius: var(--radius); }
+.story-art img { width: 100%; max-width: 520px; margin: 0 auto; }
+.story-copy p { color: var(--cream-dim); }
+.chips { list-style: none; padding: 0; margin: 24px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.chips li { border: 1px solid var(--coal-3); background: var(--coal-2); padding: .35em .85em; border-radius: 999px; font-size: .9rem; }
+
+/* Reserva */
+.reserve { text-align: center; padding: 72px 16px; background: var(--wine); background: linear-gradient(160deg, #8a2533, #5a1520); }
+.reserve p { max-width: 44ch; margin: 0 auto 28px; color: #f1d9d3; }
+
+/* Info */
+.info { max-width: 1100px; margin: 0 auto; padding: 72px 16px 32px; display: grid; gap: 16px; }
+@media (min-width: 760px) { .info { grid-template-columns: repeat(3, 1fr); padding: 96px 24px 40px; } }
+.info-card { background: var(--coal-2); border: 1px solid var(--coal-3); border-radius: var(--radius); padding: 24px; }
+.info-card p { color: var(--cream-dim); margin: 0 0 10px; }
+.map { max-width: 1100px; margin: 0 auto 72px; padding: 0 16px; }
+.map iframe { width: 100%; height: 340px; border: 0; border-radius: var(--radius); filter: grayscale(.6) contrast(1.05); }
+
+.foot { text-align: center; padding: 48px 16px 110px; border-top: 1px solid var(--coal-3); color: var(--cream-dim); font-size: .9rem; }
+.foot-logo { width: 140px; aspect-ratio: 1650 / 1400; margin: 0 auto 12px; opacity: .8; }
+
+.fab-wa {
+  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 10;
+  width: 58px; height: 58px; border-radius: 50%; background: var(--wa); color: #06210f;
+  display: grid; place-items: center; box-shadow: 0 6px 22px rgba(0, 0, 0, .45);
+}
+.fab-wa .ico { width: 30px; height: 30px; }
+
+/* Página de promo */
+.promo-page { max-width: 440px; margin: 0 auto; padding: 28px 16px 40px; display: grid; gap: 18px; min-height: 100svh; align-content: start; }
+.promo-logo-link { justify-self: center; }
+.promo-logo { width: 170px; aspect-ratio: 1650 / 1400; }
+.promo-foot { text-align: center; color: var(--cream-dim); font-size: .85rem; }
+.promo-foot a { color: var(--ember); text-decoration: none; }
+
+.ticket { background: var(--cream); color: var(--coal); border-radius: 18px; overflow: hidden; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
+.ticket-top { padding: 28px 24px 22px; text-align: center; background:
+  radial-gradient(90% 60% at 50% 0%, rgba(232, 150, 74, .28), transparent 70%), var(--cream); }
+.ticket-kicker { display: inline-block; font: 600 .75rem/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--wine); border: 1.5px solid currentColor; border-radius: 999px; padding: .45em .9em; }
+.ticket-badge { font: 400 clamp(2.6rem, 13vw, 3.6rem)/1 var(--hand); color: var(--ember-deep); margin: 16px 0 6px; transform: rotate(-3deg); }
+.ticket h1 { font-size: 1.5rem; text-transform: uppercase; margin: 6px 0 8px; }
+.ticket-desc { margin: 0; color: #4a3f38; }
+.ticket-cut { height: 22px; position: relative; background:
+  radial-gradient(circle at 0 50%, var(--coal) 11px, transparent 12px),
+  radial-gradient(circle at 100% 50%, var(--coal) 11px, transparent 12px); }
+.ticket-cut::after { content: ''; position: absolute; left: 22px; right: 22px; top: 50%; border-top: 2px dashed #cbbfae; }
+.ticket-bottom { padding: 18px 24px 26px; text-align: center; }
+.ticket-hint { font-size: .9rem; color: #6d6159; margin: 10px 0 0; }
+.ticket-cond { font-size: .82rem; color: #6d6159; margin: 12px 0 0; }
+.ticket-ended .ticket-top { padding-bottom: 28px; }
+.ticket .btn-ember { background: var(--coal); color: var(--cream); }
+.ticket .btn-ember:hover { background: #2b2420; }
+
+.coupon { display: grid; justify-items: center; gap: 6px; }
+.coupon-label { margin: 0; font: 600 .75rem/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--wine); }
+.coupon-qr { width: 180px; height: 180px; border-radius: 8px; background: #fff; padding: 6px; }
+.coupon-code { margin: 4px 0 0; font: 600 2rem/1 ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .12em; }
+.coupon-status { margin: 4px 0 0; font-size: .92rem; color: #4a3f38; }
+.coupon-used .coupon-code { text-decoration: line-through; color: #8d8178; }

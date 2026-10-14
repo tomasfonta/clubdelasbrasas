@@ -1,0 +1,22 @@
+{
+  "name": "elclubdelasbrasas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Landing + promos con QR y panel de métricas para El Club de las Brasas (El Palo, Málaga)",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch --env-file-if-exists=.env server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "geoip-lite": "^1.4.10",
+    "qrcode": "^1.5.4",
+    "ua-parser-js": "^1.0.39"
+  }
+}

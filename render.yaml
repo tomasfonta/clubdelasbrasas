@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: elclubdelasbrasas
+    runtime: node
+    plan: starter            # el disco persistente necesita un plan de pago
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: DATABASE_PATH
+        value: /var/data/brasas.db
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_PATH
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: WHATSAPP_NUMBER
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
