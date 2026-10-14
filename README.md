@@ -37,6 +37,10 @@ Para distinguir publicaciones, añade `&utm_campaign=post-pinta-octubre` al link
 
 **SQLite alojado en [Turso](https://turso.tech)**, plan gratuito. La app se conecta con `@libsql/client`.
 
+- **Panel de la base:** https://app.turso.tech/tomasfonta/databases/clubdelasbrasas
+- **URL (`TURSO_DATABASE_URL`):** `libsql://clubdelasbrasas-tomasfonta.aws-eu-west-1.turso.io` (región Irlanda, `aws-eu-west-1`)
+- **Token (`TURSO_AUTH_TOKEN`):** se genera desde el panel → *Create Token*. Va en `.env` y en Render, nunca en el repo.
+
 - **Producción:** si existen `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`, usa Turso.
 - **Local:** si no existen, usa el fichero `./data/brasas.db`. No hace falta cuenta para desarrollar.
 - Al arrancar crea las tablas si no existen y, la primera vez, las 5 promos y los ajustes por defecto ([src/db.js](src/db.js)).
