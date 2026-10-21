@@ -1,8 +1,15 @@
+import { statSync } from 'node:fs';
+
 export const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export const html = (strings, ...values) =>
   strings.reduce((out, s, i) => out + s + (i < values.length ? (Array.isArray(values[i]) ? values[i].join('') : values[i] ?? '') : ''), '');
+
+// Versión del CSS = fecha de modificación: los estáticos se cachean 7 días y así el navegador baja el nuevo al cambiar.
+const cssVersion = (name) => {
+  try { return statSync(`public/css/${name}.css`).mtimeMs.toString(36).slice(0, 8); } catch { return '0'; }
+};
 
 export function layout({ title, description = '', body, css = 'site', robots = 'index,follow', ogImage = '/img/ilustracion.jpg' }) {
   return html`<!doctype html>
@@ -20,8 +27,8 @@ export function layout({ title, description = '', body, css = 'site', robots = '
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&family=Oswald:wght@500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/${css}.css">
+<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&family=Oswald:wght@500;600&family=Rubik:wght@600;800&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/${css}.css?v=${cssVersion(css)}">
 </head>
 <body>
 ${body}

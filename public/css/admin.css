@@ -150,3 +150,6 @@ label small { font-weight: 400; color: var(--ink-3); }
 .verdict.bad { background: var(--bad-bg); color: var(--bad); }
 
 .settings { display: grid; gap: 14px; max-width: 640px; }
+.landing-qrs { display: grid; gap: 24px; margin-top: 16px; }
+@media (min-width: 600px) { .landing-qrs { grid-template-columns: 1fr 1fr; } }
+.landing-qrs input { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; text-align: center; }

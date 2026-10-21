@@ -8,6 +8,8 @@ function madridOffsetHours() {
   return Math.round((local - utc) / 3600000);
 }
 
+export const LANDING_PATHS = ['/tarjeta', '/eventos', '/catering', '/tienda', '/flyer'];
+
 export async function getMetrics(days, promoId = null) {
   const tz = `+${madridOffsetHours()} hours`;
   const since = days > 0 ? `datetime('now', '-${Number(days)} days')` : `'1970-01-01'`;
@@ -22,7 +24,7 @@ export async function getMetrics(days, promoId = null) {
 
   // Todas las consultas en paralelo: con Turso cada una es un viaje de red.
   const [visits, uniques, promoVisits, coupons, redeemed, whatsapp, daily, redeemedRows, byPromo, byHour, recentCoupons,
-    bySource, byCountry, byCity, byDevice, byOs, byInApp, byReferrer, byLang, byCampaign, noCity, noCountry] = await Promise.all([
+    bySource, byCountry, byCity, byDevice, byOs, byInApp, byReferrer, byLang, byCampaign, noCity, noCountry, byLanding] = await Promise.all([
     one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere}`),
     one(`SELECT COUNT(DISTINCT visitor_id) AS n FROM visits WHERE ${vWhere}`),
     one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere} AND promo_id IS NOT NULL`),
@@ -59,6 +61,9 @@ export async function getMetrics(days, promoId = null) {
     group('utm_campaign', 8),
     one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere} AND city IS NULL`),
     one(`SELECT COUNT(*) AS n FROM visits WHERE ${vWhere} AND country IS NULL`),
+    // Páginas de los QR: no dependen del filtro de promo.
+    all(`SELECT path, COUNT(*) AS n, COUNT(DISTINCT visitor_id) AS u FROM visits
+         WHERE ts >= ${since} AND path IN (${LANDING_PATHS.map((p) => `'${p}'`).join(', ')}) GROUP BY path`),
   ]);
 
   const redeemedDaily = Object.fromEntries(redeemedRows.map((r) => [r.day, r.n]));
@@ -82,5 +87,6 @@ export async function getMetrics(days, promoId = null) {
     byCampaign,
     noCity,
     noCountry,
+    landings: Object.fromEntries(LANDING_PATHS.map((p) => [p, byLanding.find((r) => r.path === p) || { n: 0, u: 0 }])),
   };
 }
