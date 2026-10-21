@@ -6,7 +6,7 @@ const A = ADMIN_PATH;
 const nf = new Intl.NumberFormat('es-ES');
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
 
-const SOURCE_LABELS = { qr: 'QR impreso', ig: 'Instagram', directo: 'Directo', google: 'Google', facebook: 'Facebook', referral: 'Otra web' };
+const SOURCE_LABELS = { qr: 'QR impreso', ig: 'Instagram', flyer: 'QR flyer', tarjeta: 'QR tarjeta', eventos: 'Página eventos', catering: 'Página catering', tienda: 'Tienda', home: 'Home', directo: 'Directo', google: 'Google', facebook: 'Facebook', referral: 'Otra web' };
 const DEVICE_LABELS = { mobile: 'Móvil', desktop: 'Ordenador', tablet: 'Tablet' };
 
 const fmtTs = (ts) =>
@@ -165,6 +165,15 @@ export function dashboardPage({ m, days, promos, promoId }) {
 </div>
 
 <section class="card">
+  <h3>Páginas de los QR y la tienda</h3>
+  <div class="tiles">
+    ${[['/tarjeta', 'Tarjeta'], ['/eventos', 'Eventos en el club'], ['/catering', 'Catering'], ['/tienda', 'Tienda'], ['/flyer', 'Flyer']]
+      .map(([p, label]) => tile(label, m.landings[p].n, `${nf.format(m.landings[p].u)} personas únicas`))}
+  </div>
+  <p class="note">Entradas a cada página en el periodo elegido (no depende del filtro de promo).</p>
+</section>
+
+<section class="card">
   <h3>Visitas por día</h3>
   ${dailyChart(m.daily, days)}
 </section>
@@ -220,13 +229,32 @@ ${m.byReferrer.some((r) => r.label !== 'Desconocido') ? breakdown('Webs que enla
   });
 }
 
-export function promosPage({ promos, baseUrl, flash }) {
+export function promosPage({ promos, landings, baseUrl, flash }) {
   return adminShell({
     title: 'Promos y QR',
     active: 'promos',
     flash,
     body: html`
 <p class="lead">Cada promo tiene un enlace fijo. El QR impreso lleva <code>?src=qr</code> y el enlace para Instagram <code>?src=ig</code>, así medimos de dónde viene cada visita. <strong>El enlace no cambia aunque edites el texto</strong>: puedes imprimir los QR tranquilo.</p>
+<section class="card">
+  <h2>QR de tarjeta y flyer</h2>
+  <p class="lead">Cada uno abre su propia página de enlaces. En Métricas aparecen como origen «QR tarjeta» y «QR flyer».</p>
+  <div class="landing-qrs">
+  ${Object.entries(landings).map(([key, label]) => {
+    const url = `${baseUrl}/${key}?src=${key}`;
+    return html`<div class="promo-qr">
+      <strong>${esc(label)}</strong>
+      <img src="${A}/qr/landing/${key}.svg" width="160" height="160" alt="QR de ${esc(label)}">
+      <div class="qr-links">
+        <a class="btn btn-sm" href="${A}/qr/landing/${key}.png?download=1">PNG</a>
+        <a class="btn btn-sm btn-ghost" href="${A}/qr/landing/${key}.svg?download=1">SVG</a>
+        <a class="btn btn-sm btn-ghost" href="/${key}" target="_blank" rel="noopener">Ver</a>
+      </div>
+      <input readonly value="${esc(url)}" onclick="this.select()">
+    </div>`;
+  })}
+  </div>
+</section>
 ${promos.map((p) => {
   const url = `${baseUrl}/p/${p.slug}`;
   return html`<section class="card promo-edit" id="promo-${p.id}">
@@ -318,8 +346,13 @@ export function settingsPage({ s, flash }) {
   <h2>Datos del local</h2>
   ${field('whatsapp_number', 'Número de WhatsApp', 'Con prefijo de país y sin espacios ni +. Ej: 34612345678')}
   ${field('whatsapp_message', 'Mensaje pre-escrito de reserva')}
+  ${field('orders_whatsapp', 'WhatsApp para pedidos de la tienda', 'Con prefijo de país y sin espacios ni +. Si está vacío se usa el número de WhatsApp de arriba.')}
+  ${field('events_message', 'Mensaje pre-escrito de eventos', 'Lo usa el botón de WhatsApp de la tarjeta de eventos.')}
+  ${field('catering_message', 'Mensaje pre-escrito de catering', 'Lo usa el botón de WhatsApp de la página de catering.')}
+  ${field('phone', 'Teléfono (opcional)', 'Botón «Llamar» de la tarjeta y el flyer. Si está vacío se usa el número de WhatsApp. Ej: +34 612 345 678')}
   ${field('address', 'Dirección')}
   ${field('hours', 'Horario')}
+  ${field('hours_en', 'Horario en inglés', 'Se muestra cuando la web está en inglés. Ej: Tuesday to Sunday · 13:00–16:30 & 20:00–00:00')}
   ${field('instagram', 'Instagram (URL)')}
   ${field('menu_url', 'Carta (URL)')}
   <div class="actions"><button class="btn" type="submit">Guardar</button></div>

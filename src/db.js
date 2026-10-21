@@ -93,8 +93,13 @@ const SEED_PROMOS = [
 const DEFAULT_SETTINGS = {
   whatsapp_number: process.env.WHATSAPP_NUMBER || '34600000000',
   whatsapp_message: 'Hola! Quiero reservar una mesa en El Club de las Brasas 🔥',
+  orders_whatsapp: '34604109651',
+  events_message: 'Hola! Quiero información para organizar un evento en El Club de las Brasas 🔥',
+  catering_message: 'Hola! Quiero pedir presupuesto de catering de parrilla para un evento 🔥',
+  phone: '',
   address: 'El Palo, Málaga',
   hours: 'Martes a domingo · 13:00–16:30 y 20:00–00:00',
+  hours_en: 'Tuesday to Sunday · 13:00–16:30 & 20:00–00:00',
   instagram: 'https://www.instagram.com/elclubdelasbrasas/',
   menu_url: 'https://elclubdelasbrasas.tucartadigital.com/',
 };

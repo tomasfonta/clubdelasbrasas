@@ -14,11 +14,16 @@ npm run dev          # http://localhost:3000  ·  admin en /admin
 
 | Ruta | Qué es |
 |---|---|
-| `/` | Landing con botón de reserva por WhatsApp |
+| `/` | Home: portada, vídeo «Conócenos», reserva por WhatsApp y eventos |
+| `/tarjeta?src=tarjeta` | Landing del QR de la tarjeta personal (carteles: eventos, catering, parrilla, WhatsApp, contacto) |
+| `/flyer?src=flyer` | Landing del QR del flyer (carta, parrilla, WhatsApp, llamar) |
+| `/tienda` | Tienda por encargo (empanadas y milanesas congeladas). El pedido sale por WhatsApp vía `/go/pedido`. Productos y precios en [src/store.js](src/store.js) |
+| `/eventos`, `/catering` | Páginas de eventos en el club y de catering. Fotos de prueba en `public/img/eventos` y `public/img/catering` |
 | `/p/<slug>` | Página de cada promo. El slug lleva un sufijo aleatorio (`pinta-b6d4b2`) para que no se pueda adivinar |
 | `/p/<slug>?src=qr` | Enlace que va dentro del QR impreso |
 | `/p/<slug>?src=ig` | Enlace para bio / stories de Instagram |
-| `/go/whatsapp`, `/go/carta` | Redirecciones que cuentan clics |
+| `?lang=es` / `?lang=en` | Cambia el idioma de la web pública (selector ES \| EN arriba a la derecha). Se guarda en una cookie; sin ella se usa el idioma del móvil |
+| `/go/whatsapp`, `/go/carta` | Redirecciones que cuentan clics. `?motivo=eventos` / `?motivo=catering` usan su mensaje de Ajustes |
 | `/<ADMIN_PATH>` | Panel admin (clave en `ADMIN_PASSWORD`) |
 
 **Flujo del cupón**

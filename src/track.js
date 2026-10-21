@@ -41,6 +41,11 @@ function resolveSource(req, inApp) {
 export async function recordVisit(req, res, promoId = null) {
   const vid = visitorId(req, res);
   if (isBot(req)) return vid;
+  // Vuelta a la misma página tras cambiar de idioma: no es una visita nueva.
+  if (req.cookies.cb_relang) {
+    res.clearCookie('cb_relang');
+    return vid;
+  }
   const ua = req.get('user-agent') || '';
   const parsed = new UAParser(ua).getResult();
   const inApp = inAppBrowser(ua);

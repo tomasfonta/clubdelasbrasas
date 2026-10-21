@@ -1,12 +1,26 @@
+import { statSync } from 'node:fs';
+
 export const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export const html = (strings, ...values) =>
   strings.reduce((out, s, i) => out + s + (i < values.length ? (Array.isArray(values[i]) ? values[i].join('') : values[i] ?? '') : ''), '');
 
-export function layout({ title, description = '', body, css = 'site', robots = 'index,follow', ogImage = '/img/ilustracion.jpg' }) {
+// Versión del CSS = fecha de modificación: los estáticos se cachean 7 días y así el navegador baja el nuevo al cambiar.
+const cssVersion = (name) => {
+  try { return statSync(`public/css/${name}.css`).mtimeMs.toString(36).slice(0, 8); } catch { return '0'; }
+};
+
+// lang: idioma de la página. switcher: pinta el selector ES | EN arriba a la derecha (sólo en la web pública).
+// Los enlaces ?lang= los atiende el middleware de idioma de server.js (guarda la cookie y vuelve a la misma página).
+const langSwitch = (lang) => html`<nav class="lang-switch" aria-label="Idioma / Language">
+  <a href="?lang=es" hreflang="es" lang="es"${lang === 'es' ? ' aria-current="true"' : ''}>ES</a>
+  <a href="?lang=en" hreflang="en" lang="en"${lang === 'en' ? ' aria-current="true"' : ''}>EN</a>
+</nav>`;
+
+export function layout({ title, description = '', body, css = 'site', robots = 'index,follow', ogImage = '/img/ilustracion.jpg', lang = 'es', switcher = false }) {
   return html`<!doctype html>
-<html lang="es">
+<html lang="${lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -20,10 +34,11 @@ export function layout({ title, description = '', body, css = 'site', robots = '
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&family=Oswald:wght@500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/${css}.css">
+<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&family=Oswald:wght@500;600&family=Rubik:wght@600;800&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/${css}.css?v=${cssVersion(css)}">
 </head>
 <body>
+${switcher ? langSwitch(lang) : ''}
 ${body}
 </body>
 </html>`;

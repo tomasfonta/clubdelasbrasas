@@ -5,7 +5,8 @@ import { db, initDb, getSettings, saveSettings, isPromoLive, newCouponCode } fro
 import { recordVisit, recordEvent, visitorId } from './src/track.js';
 import { ADMIN_PATH as A, isAdmin, requireAdmin, login, logout, checkPassword, tooManyAttempts, failedAttempt } from './src/auth.js';
 import { getMetrics } from './src/metrics.js';
-import { homePage, promoPage, promoEndedPage, notFoundPage } from './src/views/public.js';
+import { homePage, promoPage, promoEndedPage, notFoundPage, tarjetaPage, flyerPage, eventosPage, cateringPage, tiendaPage } from './src/views/public.js';
+import { orderMessage } from './src/store.js';
 import { loginPage, dashboardPage, promosPage, validatePage, redeemPage, settingsPage } from './src/views/admin.js';
 
 const app = express();
@@ -14,6 +15,23 @@ app.disable('x-powered-by');
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 app.use(express.static('public', { maxAge: '7d' }));
+
+// Idioma de la web pública: ?lang=es|en lo guarda en una cookie y vuelve a la misma URL sin el parámetro.
+// Sin cookie, se usa el idioma del móvil (inglés si lo pide primero; si no, español).
+app.use((req, res, next) => {
+  const q = String(req.query.lang || '');
+  if (q === 'es' || q === 'en') {
+    const year = 1000 * 60 * 60 * 24 * 365;
+    res.cookie('cb_lang', q, { maxAge: year, sameSite: 'lax', secure: req.secure });
+    res.cookie('cb_relang', '1', { maxAge: 10000, httpOnly: true, sameSite: 'lax', secure: req.secure });
+    const url = new URL(req.originalUrl, 'http://x');
+    url.searchParams.delete('lang');
+    return res.redirect(url.pathname + url.search);
+  }
+  const c = req.cookies.cb_lang;
+  res.locals.lang = c === 'es' || c === 'en' ? c : /^en\b/i.test(req.get('accept-language') || '') ? 'en' : 'es';
+  next();
+});
 
 // Express 4 no captura errores de handlers async: los reenviamos al manejador de errores.
 const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -31,19 +49,23 @@ function normalizeCode(raw) {
 
 const qrOptions = { margin: 1, errorCorrectionLevel: 'M', color: { dark: '#0d0b0a', light: '#ffffff' } };
 
+// Landings con QR propio (tarjeta personal para eventos y flyer). La clave es la ruta y también el ?src= del QR.
+export const LANDINGS = { tarjeta: 'Tarjeta (eventos)', flyer: 'Flyer' };
+
 /* ---------------------------------- Público ---------------------------------- */
 
 app.get('/health', (req, res) => res.send('ok'));
 
 app.get('/', h(async (req, res) => {
   const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
-  res.send(homePage(settings));
+  res.send(homePage(settings, res.locals.lang));
 }));
 
 app.get('/go/whatsapp', h(async (req, res) => {
   const promo = req.query.promo ? await promoById(req.query.promo) : null;
   const [s] = await Promise.all([getSettings(), recordEvent(req, res, 'whatsapp', promo?.id ?? null)]);
-  const text = promo ? `${s.whatsapp_message}\n(Vengo por la promo: ${promo.title})` : s.whatsapp_message;
+  const base = { eventos: s.events_message, catering: s.catering_message }[req.query.motivo] || s.whatsapp_message;
+  const text = promo ? `${base}\n(Vengo por la promo: ${promo.title})` : base;
   res.redirect(`https://wa.me/${s.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
 }));
 
@@ -52,20 +74,53 @@ app.get('/go/carta', h(async (req, res) => {
   res.redirect(s.menu_url);
 }));
 
+app.get('/tarjeta', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(tarjetaPage(settings, res.locals.lang));
+}));
+
+app.get('/eventos', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(eventosPage(settings, res.locals.lang));
+}));
+
+app.get('/catering', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(cateringPage(settings, res.locals.lang));
+}));
+
+app.get('/tienda', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(tiendaPage(settings, res.locals.lang, { empty: req.query.vacio === '1' }));
+}));
+
+// Pedido de la tienda: arma el mensaje con las cantidades y abre WhatsApp. Cuenta como clic en WhatsApp.
+app.get('/go/pedido', h(async (req, res) => {
+  const text = orderMessage(req.query);
+  if (!text) return res.redirect('/tienda?vacio=1');
+  const [s] = await Promise.all([getSettings(), recordEvent(req, res, 'whatsapp')]);
+  res.redirect(`https://wa.me/${(s.orders_whatsapp || s.whatsapp_number).replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
+}));
+
+app.get('/flyer', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(flyerPage(settings, res.locals.lang));
+}));
+
 app.get('/p/:slug', h(async (req, res) => {
   const promo = await promoBySlug(req.params.slug);
-  if (!promo) return res.status(404).send(notFoundPage());
+  if (!promo) return res.status(404).send(notFoundPage(res.locals.lang));
   // ?c=1 es la vuelta tras generar el cupón y ?preview=1 la vista previa del admin: no cuentan como visita.
   const skip = req.query.c === '1' || (req.query.preview === '1' && isAdmin(req));
   const vid = skip ? visitorId(req, res) : await recordVisit(req, res, promo.id);
   const coupon = await db.get('SELECT * FROM coupons WHERE promo_id = ? AND visitor_id = ?', [promo.id, vid]);
-  if (!isPromoLive(promo) && !coupon) return res.send(promoEndedPage(promo));
-  res.send(promoPage(promo, { coupon, src: String(req.query.src || '').slice(0, 40) }));
+  if (!isPromoLive(promo) && !coupon) return res.send(promoEndedPage(promo, res.locals.lang));
+  res.send(promoPage(promo, res.locals.lang, { coupon, src: String(req.query.src || '').slice(0, 40) }));
 }));
 
 app.post('/p/:slug/cupon', h(async (req, res) => {
   const promo = await promoBySlug(req.params.slug);
-  if (!promo) return res.status(404).send(notFoundPage());
+  if (!promo) return res.status(404).send(notFoundPage(res.locals.lang));
   if (!isPromoLive(promo)) return res.redirect(303, `/p/${promo.slug}`);
   const vid = visitorId(req, res);
   const existing = await db.get('SELECT id FROM coupons WHERE promo_id = ? AND visitor_id = ?', [promo.id, vid]);
@@ -97,7 +152,7 @@ app.get('/cupon/:code.svg', h(async (req, res) => {
 
 app.get('/v/:code', h(async (req, res) => {
   const coupon = await couponByCode(req.params.code);
-  if (!coupon) return res.status(404).send(notFoundPage());
+  if (!coupon) return res.status(404).send(notFoundPage(res.locals.lang));
   if (isAdmin(req)) return res.redirect(`${A}/canje/${coupon.code}`);
   res.redirect(`/p/${(await promoById(coupon.promo_id)).slug}?c=1`);
 }));
@@ -138,7 +193,7 @@ admin.get('/', h(async (req, res) => {
 }));
 
 admin.get('/promos', h(async (req, res) => {
-  res.send(promosPage({ promos: await allPromos(), baseUrl: baseUrl(req), flash: req.query.ok ? 'Promo guardada.' : '' }));
+  res.send(promosPage({ promos: await allPromos(), landings: LANDINGS, baseUrl: baseUrl(req), flash: req.query.ok ? 'Promo guardada.' : '' }));
 }));
 
 admin.post('/promos/:id', h(async (req, res) => {
@@ -166,6 +221,15 @@ admin.get('/qr/:id.:ext(svg|png)', h(async (req, res) => {
   const url = `${baseUrl(req)}/p/${p.slug}?src=${src}`;
   const name = `qr-${p.slug.replace(/-[0-9a-f]{6}$/, '')}`;
   if (req.query.download) res.attachment(`${name}.${req.params.ext}`);
+  if (req.params.ext === 'svg') return res.type('image/svg+xml').send(await QRCode.toString(url, { ...qrOptions, type: 'svg' }));
+  res.type('png').send(await QRCode.toBuffer(url, { ...qrOptions, width: 1200, margin: 2 }));
+}));
+
+admin.get('/qr/landing/:key.:ext(svg|png)', h(async (req, res) => {
+  const key = req.params.key;
+  if (!LANDINGS[key]) return res.sendStatus(404);
+  const url = `${baseUrl(req)}/${key}?src=${key}`;
+  if (req.query.download) res.attachment(`qr-${key}.${req.params.ext}`);
   if (req.params.ext === 'svg') return res.type('image/svg+xml').send(await QRCode.toString(url, { ...qrOptions, type: 'svg' }));
   res.type('png').send(await QRCode.toBuffer(url, { ...qrOptions, width: 1200, margin: 2 }));
 }));
@@ -210,9 +274,9 @@ app.use(A, (req, res, next) => {
   next();
 }, admin);
 
-app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /p/\nDisallow: /v/\nDisallow: /go/\n`));
+app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /p/\nDisallow: /v/\nDisallow: /go/\nDisallow: /tarjeta\nDisallow: /flyer\nDisallow: /eventos\nDisallow: /catering\n`));
 
-app.use((req, res) => res.status(404).send(notFoundPage()));
+app.use((req, res) => res.status(404).send(notFoundPage(res.locals.lang)));
 
 app.use((err, req, res, next) => {
   console.error(err);
