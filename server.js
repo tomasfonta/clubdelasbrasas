@@ -5,7 +5,8 @@ import { db, initDb, getSettings, saveSettings, isPromoLive, newCouponCode } fro
 import { recordVisit, recordEvent, visitorId } from './src/track.js';
 import { ADMIN_PATH as A, isAdmin, requireAdmin, login, logout, checkPassword, tooManyAttempts, failedAttempt } from './src/auth.js';
 import { getMetrics } from './src/metrics.js';
-import { homePage, promoPage, promoEndedPage, notFoundPage } from './src/views/public.js';
+import { homePage, promoPage, promoEndedPage, notFoundPage, tarjetaPage, flyerPage, eventosPage, cateringPage, tiendaPage } from './src/views/public.js';
+import { orderMessage } from './src/store.js';
 import { loginPage, dashboardPage, promosPage, validatePage, redeemPage, settingsPage } from './src/views/admin.js';
 
 const app = express();
@@ -31,6 +32,9 @@ function normalizeCode(raw) {
 
 const qrOptions = { margin: 1, errorCorrectionLevel: 'M', color: { dark: '#0d0b0a', light: '#ffffff' } };
 
+// Landings con QR propio (tarjeta personal para eventos y flyer). La clave es la ruta y también el ?src= del QR.
+export const LANDINGS = { tarjeta: 'Tarjeta (eventos)', flyer: 'Flyer' };
+
 /* ---------------------------------- Público ---------------------------------- */
 
 app.get('/health', (req, res) => res.send('ok'));
@@ -43,13 +47,47 @@ app.get('/', h(async (req, res) => {
 app.get('/go/whatsapp', h(async (req, res) => {
   const promo = req.query.promo ? await promoById(req.query.promo) : null;
   const [s] = await Promise.all([getSettings(), recordEvent(req, res, 'whatsapp', promo?.id ?? null)]);
-  const text = promo ? `${s.whatsapp_message}\n(Vengo por la promo: ${promo.title})` : s.whatsapp_message;
+  const base = { eventos: s.events_message, catering: s.catering_message }[req.query.motivo] || s.whatsapp_message;
+  const text = promo ? `${base}\n(Vengo por la promo: ${promo.title})` : base;
   res.redirect(`https://wa.me/${s.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
 }));
 
 app.get('/go/carta', h(async (req, res) => {
   const [s] = await Promise.all([getSettings(), recordEvent(req, res, 'carta')]);
   res.redirect(s.menu_url);
+}));
+
+app.get('/tarjeta', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(tarjetaPage(settings));
+}));
+
+app.get('/eventos', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(eventosPage(settings));
+}));
+
+app.get('/catering', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(cateringPage(settings));
+}));
+
+app.get('/tienda', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(tiendaPage(settings, { empty: req.query.vacio === '1' }));
+}));
+
+// Pedido de la tienda: arma el mensaje con las cantidades y abre WhatsApp. Cuenta como clic en WhatsApp.
+app.get('/go/pedido', h(async (req, res) => {
+  const text = orderMessage(req.query);
+  if (!text) return res.redirect('/tienda?vacio=1');
+  const [s] = await Promise.all([getSettings(), recordEvent(req, res, 'whatsapp')]);
+  res.redirect(`https://wa.me/${s.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`);
+}));
+
+app.get('/flyer', h(async (req, res) => {
+  const [settings] = await Promise.all([getSettings(), recordVisit(req, res)]);
+  res.send(flyerPage(settings));
 }));
 
 app.get('/p/:slug', h(async (req, res) => {
@@ -138,7 +176,7 @@ admin.get('/', h(async (req, res) => {
 }));
 
 admin.get('/promos', h(async (req, res) => {
-  res.send(promosPage({ promos: await allPromos(), baseUrl: baseUrl(req), flash: req.query.ok ? 'Promo guardada.' : '' }));
+  res.send(promosPage({ promos: await allPromos(), landings: LANDINGS, baseUrl: baseUrl(req), flash: req.query.ok ? 'Promo guardada.' : '' }));
 }));
 
 admin.post('/promos/:id', h(async (req, res) => {
@@ -166,6 +204,15 @@ admin.get('/qr/:id.:ext(svg|png)', h(async (req, res) => {
   const url = `${baseUrl(req)}/p/${p.slug}?src=${src}`;
   const name = `qr-${p.slug.replace(/-[0-9a-f]{6}$/, '')}`;
   if (req.query.download) res.attachment(`${name}.${req.params.ext}`);
+  if (req.params.ext === 'svg') return res.type('image/svg+xml').send(await QRCode.toString(url, { ...qrOptions, type: 'svg' }));
+  res.type('png').send(await QRCode.toBuffer(url, { ...qrOptions, width: 1200, margin: 2 }));
+}));
+
+admin.get('/qr/landing/:key.:ext(svg|png)', h(async (req, res) => {
+  const key = req.params.key;
+  if (!LANDINGS[key]) return res.sendStatus(404);
+  const url = `${baseUrl(req)}/${key}?src=${key}`;
+  if (req.query.download) res.attachment(`qr-${key}.${req.params.ext}`);
   if (req.params.ext === 'svg') return res.type('image/svg+xml').send(await QRCode.toString(url, { ...qrOptions, type: 'svg' }));
   res.type('png').send(await QRCode.toBuffer(url, { ...qrOptions, width: 1200, margin: 2 }));
 }));
@@ -210,7 +257,7 @@ app.use(A, (req, res, next) => {
   next();
 }, admin);
 
-app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /p/\nDisallow: /v/\nDisallow: /go/\n`));
+app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /p/\nDisallow: /v/\nDisallow: /go/\nDisallow: /tarjeta\nDisallow: /flyer\nDisallow: /eventos\nDisallow: /catering\n`));
 
 app.use((req, res) => res.status(404).send(notFoundPage()));
 
